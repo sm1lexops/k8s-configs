@@ -4,15 +4,33 @@ set -e
 sudo apt update -y
 sudo apt upgrade -y
 
-sudo apt install -y apt-transport-https ca-certificates curl gpg
-
+sudo apt install -y apt-transport-https ca-certificates curl gpg \
+apt-transport-https vim git wget software-properties-common lsb-release ca-certificates
+sudo swapoff -a
+modprobe overlay
+modprobe br_netfilter
 #Download the public signing key for the Kubernetes package repositories
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/kubernetes-apt-keyring.gpg
 
 #Add k8s packages source list
 echo 'deb [signed-by=/etc/apt/trusted.gpg.d/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+LOCAL_IP=$(hostname -I | awk '{print $1}')
+sudo cat <<EOF | sudo tee -a /etc/hosts
+$LOCAL_IP k8scp
+EOF
+
+#Install container runtime, choose for your best fit containerd/CRI-O/cir-dockerd
+sudo apt install -y containerd
+sudo mkdir -p /etc/containerd
+sudo touch config.toml
+sudo containerd config default | sudo tee /etc/containerd/config.toml
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now containerd
+sudo systemctl restart containerd
 
 #Update and install k8s
+sudo vim /etc/kubernetes/kubeadm-config.yaml
 sudo apt update
 sudo apt install -y kubelet kubeadm kubectl
 sudo apt-mark hold kubelet kubeadm kubectl
@@ -38,3 +56,39 @@ EOF
 
 # Apply sysctl params without reboot
 sudo sysctl --system
+
+#Check packet filtering running
+lsmod | grep br_netfilter
+lsmod | grep overlay
+#Check network routing
+sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables net.ipv4.ip_forward
+
+# Install k8s cluster
+sudo cat <<EOF | sudo tee /etc/kubernetes/kubeadm-config.yaml
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+kubernetesVersion: 1.28.5
+controlPlaneEndpoint: "k8scp:6443"
+networking:
+  podSubnet: 172.22.0.0/16
+EOF 
+#sudo kubeadm init --control-plane-endpoint #If you have plans to upgrade this single control-plane kubeadm cluster to high availability
+sudo kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml --upload-certs | tee kubeadm-init.out
+
+#To make run kubectl fron non-root user
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+#Installing a Pod network add-on
+#I using cilium
+#helm repo add cilium https://helm.cilium.io/$ helm repo update$ helm template cilium cilium/cilium --version 1.14.1 \--namespace kube-system > cilium.yaml
+#remote copy with pub key 
+scp -i /path/to/.pem /path/to/file <remote_address>:/home/ubuntu/lfsconfigs
+
+kubectl apply -f /home/student/LFS258/SOLUTIONS/s_03/cilium-cni.yaml
+#bash completion for kubectl
+sudo apt install bash-completion -y
+exit #log back in
+source <(kubectl completion bash)
+echo "source <(kubectl completion bash)" >> $HOME/.bashrc
