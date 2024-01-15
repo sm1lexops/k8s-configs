@@ -4,6 +4,11 @@ set -e
 sudo apt update -y
 sudo apt upgrade -y
 
+#Rename node to k8scp and worker
+cat <<EOF | sudo tee /etc/hostname
+k8scp
+EOF
+
 sudo apt install -y apt-transport-https ca-certificates curl gpg \
 apt-transport-https vim git wget software-properties-common lsb-release ca-certificates
 sudo swapoff -a
@@ -101,9 +106,26 @@ openssl x509 -pubkey \
 -pubin -outform der 2>/dev/null | openssl dgst \
 -sha256 -hex | sed 's/ˆ.* //'
 
-#Join your worker nodes to the cluster
+#Join your worker nodes to the cluster, check connections and firewall settings
 kubeadm join \
 --token 27eee4.6e66ff60318da929 \
 k8scp:6443 \
 --discovery-token-ca-cert-hash \
 sha256:6d541678b05652e1fa5d43908e75e67376e994c3483d6683f2a18673e5d2a1b0
+
+#Check clustr status and nodes
+kubectl get node
+kubectl describe node <name>
+#Check taints nods and removing them
+kubectl describe node <name> | grep -i taint
+#Check DNS and Cilium pods running
+kubectl get pods --all-namespaces
+#Delete pods
+kubectl -n kube-system delete pod coredns-576cbf47c7-vq5dz coredns-576cbf47c7-rn6v4
+
+#Update containerd notation for the runtime-endpoint
+sudo crictl config --set \
+runtime-endpoint=unix:///run/containerd/containerd.sock \
+--set image-endpoint=unix:///run/containerd/containerd.sock
+
+sudo cat /etc/crictl.yaml
