@@ -21,12 +21,13 @@ EOF
 
 #Install container runtime, choose for your best fit containerd/CRI-O/cir-dockerd
 sudo apt install -y containerd
+sudo systemctl daemon-reload
+sudo systemctl enable --now containerd
+
 sudo mkdir -p /etc/containerd
 sudo touch config.toml
 sudo containerd config default | sudo tee /etc/containerd/config.toml
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now containerd
+sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
 sudo systemctl restart containerd
 
 #Update and install k8s
@@ -92,3 +93,17 @@ sudo apt install bash-completion -y
 exit #log back in
 source <(kubectl completion bash)
 echo "source <(kubectl completion bash)" >> $HOME/.bashrc
+
+#Generate token for joining worker nodes and ca cert hash summ 
+sudo kubeadm token create --print-join-command | tee kubeadm-join.out
+openssl x509 -pubkey \
+-in /etc/kubernetes/pki/ca.crt | openssl rsa \
+-pubin -outform der 2>/dev/null | openssl dgst \
+-sha256 -hex | sed 's/ˆ.* //'
+
+#Join your worker nodes to the cluster
+kubeadm join \
+--token 27eee4.6e66ff60318da929 \
+k8scp:6443 \
+--discovery-token-ca-cert-hash \
+sha256:6d541678b05652e1fa5d43908e75e67376e994c3483d6683f2a18673e5d2a1b0
