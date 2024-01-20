@@ -86,3 +86,30 @@ kubectl get nodes #All nodes should be updated to the 1.28.6 version
 
 #run stress container for generating load
 kubectl create deployment hog --image vish/stress
+
+#Explore API calls
+export client_cert=$(grep client-cert ~/.kube/config | cut -d " " -f 6)
+echo $client_cert
+export client_key=$(grep client-key-data ~/.kube/config | cut -d " " -f 6)
+echo $client_key
+export auth=$(grep certificate-authority-data ~/.kube/config
+export auth=$(grep certificate-authority-data ~/.kube/config | cut -d " " -f 6)
+echo $auth
+echo $client_cert | base64 -d - > ./client.pem
+vim client.pem
+echo $client_key | base64 -d - > ./client_key.pem
+vim client_key.pem
+echo $auth | base64 -d - > ./ca.pem
+kubectl config view
+export srvname=$(grep server ~/.kube/config | -d " " -f 6)
+export srvname=$(grep server ~/.kube/config | cut -d " " -f 6)
+echo $srvname
+curl --cert client.pem --key client_key.pem --cacert ca.pem $srvname/api/v1/pods
+vim curlpod.json
+curl --cert client.pem --key client_key.pem --cacert ca.pem $srvname/api/v1/namespaces/default/pods -XPOST -H'Content-Type: application/json' -d@curlpod.json
+
+
+#objects available for v1 api
+python3 -m json.tool /home/ubuntu/.kube/cache/discovery/k8scp_6443/apps/v1/serverresources.json | grep kind
+
+python3 -m json.tool /home/ubuntu/.kube/cache/discovery/k8scp_6443/v1/serverresources.json | grep kind
