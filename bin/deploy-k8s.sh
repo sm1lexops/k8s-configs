@@ -23,8 +23,8 @@ sudo reboot
 sudo apt install -y apt-transport-https ca-certificates curl gpg \
 apt-transport-https vim git wget software-properties-common lsb-release ca-certificates
 sudo swapoff -a
-modprobe overlay
-modprobe br_netfilter
+sudo modprobe overlay
+sudo modprobe br_netfilter
 #Download the public signing key for the Kubernetes package repositories
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/kubernetes-apt-keyring.gpg
 
