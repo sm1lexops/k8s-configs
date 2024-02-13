@@ -10,8 +10,15 @@ sudo apt upgrade -y
 
 #Rename node to k8scp and worker
 cat <<EOF | sudo tee /etc/hostname
-k8scp
+<your_hostname>
 EOF
+
+sudo hostnamectl set-hostname <your_hostname>
+
+cat <<EOF | sudo tee /etc/hosts
+<your_hostname>
+EOF
+sudo reboot
 
 sudo apt install -y apt-transport-https ca-certificates curl gpg \
 apt-transport-https vim git wget software-properties-common lsb-release ca-certificates
