@@ -44,10 +44,19 @@ sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/con
 sudo systemctl restart containerd
 
 #Update and install k8s
-sudo vim /etc/kubernetes/kubeadm-config.yaml
+
 sudo apt update
 sudo apt install -y kubelet kubeadm kubectl
 sudo apt-mark hold kubelet kubeadm kubectl
+
+sudo cat <<EOF | sudo tee /etc/kubernetes/kubeadm-config.yaml
+apiVersion: kudeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+#kubernetesVersion: 1.28.6
+controlPlaneEndpoint: "cp-node-1:6443"
+networking:
+  podSubnet: 172.16.0.0/20
+EOF
 
 #The kubelet is now restarting every few seconds, as it waits in a crashloop for kubeadm to tell it what to do.
 
@@ -57,9 +66,6 @@ cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
 overlay
 br_netfilter
 EOF
-
-sudo modprobe overlay
-sudo modprobe br_netfilter
 
 # sysctl params required by setup, params persist across reboots
 cat <<EOF | sudo tee /etc/sysctl.d/k8s.conf
@@ -77,19 +83,12 @@ lsmod | grep overlay
 #Check network routing
 sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables net.ipv4.ip_forward
 
-# Install k8s cluster
-sudo cat <<EOF | sudo tee /etc/kubernetes/kubeadm-config.yaml
-apiVersion: kubeadm.k8s.io/v1beta3
-kind: ClusterConfiguration
-kubernetesVersion: 1.28.5
-controlPlaneEndpoint: "k8scp:6443"
-networking:
-  podSubnet: 172.22.0.0/16
-EOF 
+
+
 #sudo kubeadm init --control-plane-endpoint #If you have plans to upgrade this single control-plane kubeadm cluster to high availability
 sudo kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml --upload-certs | tee kubeadm-init.out
 
-#To make run kubectl fron non-root user
+#To make run kubectl from non-root user
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
