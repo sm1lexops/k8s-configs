@@ -15,8 +15,9 @@ EOF
 
 sudo hostnamectl set-hostname <your_hostname>
 
-cat <<EOF | sudo tee /etc/hosts
-<your_hostname>
+LOCAL_IP=$(hostname -I | awk '{print $1}')
+sudo cat <<EOF | sudo tee -a /etc/hosts
+$LOCAL_IP <your_hostname>
 EOF
 sudo reboot
 
@@ -30,10 +31,6 @@ curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | sudo gpg --
 
 #Add k8s packages source list
 echo 'deb [signed-by=/etc/apt/trusted.gpg.d/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
-LOCAL_IP=$(hostname -I | awk '{print $1}')
-sudo cat <<EOF | sudo tee -a /etc/hosts
-$LOCAL_IP k8scp
-EOF
 
 #Install container runtime, choose for your best fit containerd/CRI-O/cir-dockerd
 sudo apt install -y containerd
