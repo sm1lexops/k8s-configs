@@ -108,3 +108,14 @@ sudo kubeadm reset
 sudo rm -fR /etc/cni/net.d
 iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
 
+# Check etcd db state
+kubectl -n kubu-system get pods | grep etcd
+kubectl -n kube-system exec -it etcd-<cp-node-1> -- /bin/sh
+# then in **ETCDCTL_API**
+etcdctl -w table \
+--endpoints 10.10.xx.xx.:2379,172.xx.xx.xx:2379 \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--cert /etc/kubernetes/pki/etcd/server.crt \
+--key /etc/kubernetes/pki/etcd/server.key \
+endpoint status
+
