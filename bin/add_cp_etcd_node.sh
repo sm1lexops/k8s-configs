@@ -68,6 +68,11 @@ EOF
 # Apply sysctl params without reboot
 sudo sysctl --system
 
+# If you have error message sysctl: setting key "net.ipv4.conf.all.promote_secondaries": Invalid argument
+# Change this parameter
+sudo sysctl -w net.ipv4.conf.all.promote_secondaries=1
+sysctl net.ipv4.conf.all.promote_secondaries
+
 #Check packet filtering running
 lsmod | grep br_netfilter
 lsmod | grep overlay
