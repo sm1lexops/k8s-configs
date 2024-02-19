@@ -117,7 +117,7 @@ sudo rm -fR /etc/cni/net.d
 iptables -F && iptables -t nat -F && iptables -t mangle -F && iptables -X
 
 # Check etcd db state
-kubectl -n kubu-system get pods | grep etcd
+kubectl -n kube-system get pods | grep etcd
 kubectl -n kube-system exec -it etcd-<cp-node-1> -- /bin/sh
 # then in **ETCDCTL_API**
 etcdctl -w table \
