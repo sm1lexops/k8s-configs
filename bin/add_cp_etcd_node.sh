@@ -69,8 +69,11 @@ EOF
 sudo sysctl --system
 
 # If you have error message sysctl: setting key "net.ipv4.conf.all.promote_secondaries": Invalid argument
-# Change this parameter
-sudo sysctl -w net.ipv4.conf.all.promote_secondaries=1
+# comment this parameter 
+sudo vim /usr/lib/sysctl.d/50-default.conf
+#sudo sysctl -w net.ipv4.conf.all.promote_secondaries=1
+
+# Check value
 sysctl net.ipv4.conf.all.promote_secondaries
 
 #Check packet filtering running
