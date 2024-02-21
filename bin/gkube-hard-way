@@ -275,3 +275,83 @@ cfssl gencert \
 }
 
 # Generate The Kubernetes API Server Certificate
+{
+
+KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe k8s-way \
+  --region $(gcloud config get-value compute/region) \
+  --format 'value(address)')
+
+KUBERNETES_HOSTNAMES=k8s,kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
+
+cat > kubernetes-csr.json <<EOF
+{
+  "CN": "kubernetes",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "EU",
+      "L": "WARSAW",
+      "O": "Kubernetes",
+      "OU": "k8s-hard-way",
+      "ST": "POLAND"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -hostname=10.32.0.1,10.100.0.10,10.100.0.11,10.100.0.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -profile=kubernetes \
+  kubernetes-csr.json | cfssljson -bare kubernetes
+
+}
+
+# Generate The Service Account Key Pair
+{
+
+cat > service-account-csr.json <<EOF
+{
+  "CN": "service-accounts",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "EU",
+      "L": "WARSAW",
+      "O": "Kubernetes",
+      "OU": "k8s-hard-way",
+      "ST": "POLAND"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  service-account-csr.json | cfssljson -bare service-account
+
+}
+
+# Distribute the Client and Server Certificates
+
+# To worker nodes
+for instance in worker-0 worker-1 worker-2; do
+  gcloud compute scp ca.pem ${instance}-key.pem ${instance}.pem ${instance}:~/
+done
+
+# To controller nodes
+for instance in controller-0 controller-1 controller-2; do
+  gcloud compute scp ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+    service-account-key.pem service-account.pem ${instance}:~/
+done
