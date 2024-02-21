@@ -27,3 +27,121 @@ echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.clou
 sudo apt update && sudo apt install google-cloud-cli
 gcloud init # or without browser 
 #gcloud auth login --no-launch-browser
+
+# Create networks
+gcloud compute networks create k8s-way --subnet-mode custom
+gcloud compute networks subnetes create kuber --network k8s-way --range 10.100.0.0/24
+gcloud compute networks subnets create kuber --network k8s-way --range 10.100.0.0/24
+KUBENET=k8s-way
+gcloud compute firewall-rules create k8s-internal-allow --allow tcp,udp,icmp --network $KUBENET --source-ranges 10.100.0.0/24,10.200.0.0/16
+gcloud compute firewall-rules create k8s-external-allow --network $KUBENET --allow tcp:22,tcp:6443,icmp --source-ranges 0.0.0.0/0
+gcloud compute firewall-rules list --filter="network:$KUBENET"
+gcloud compute addresses create $KUBENET --region $(gcloud config get-value compute/region)
+gcloud compute addresses list
+
+# Create compute resources
+# k8s controle plane nodes
+for i in 0 1 2; do
+  gcloud compute instances create controller-${i} \
+    --async \
+    --boot-disk-size 200GB \
+    --can-ip-forward \
+    --image-family ubuntu-2004-lts \
+    --image-project ubuntu-os-cloud \
+    --machine-type e2-standard-2 \
+    --private-network-ip 10.100.0.1${i} \
+    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
+    --subnet kuber \
+    --tags k8s-way,controller
+done
+
+# k8s workers
+for i in 0 1 2; do
+  gcloud compute instances create worker-${i} \
+    --async \
+    --boot-disk-size 200GB \
+    --can-ip-forward \
+    --image-family ubuntu-2004-lts \
+    --image-project ubuntu-os-cloud \
+    --machine-type e2-standard-2 \
+    --metadata pod-cidr=10.200.${i}.0/16 \
+    --private-network-ip 10.100.0.2${i} \
+    --scopes compute-rw,storage-ro,service-management,service-control,logging-write,monitoring \
+    --subnet kuber \
+    --tags k8s-way,worker
+done
+
+# Provision certs with PKI
+# Create and generate ca.pem and ca-key.pem
+{
+
+cat > ca-config.json <<EOF
+{
+  "signing": {
+    "default": {
+      "expiry": "8760h"
+    },
+    "profiles": {
+      "kubernetes": {
+        "usages": ["signing", "key encipherment", "server auth", "client auth"],
+        "expiry": "8760h"
+      }
+    }
+  }
+}
+EOF
+
+cat > ca-csr.json <<EOF
+{
+  "CN": "Kubernetes",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "EU",
+      "L": "WARSAW",
+      "O": "Kubernetes",
+      "OU": "CA",
+      "ST": "POLAND"
+    }
+  ]
+}
+EOF
+
+cfssl gencert -initca ca-csr.json | cfssljson -bare ca
+
+}
+
+# Generate admin cert admin-key.pem admin.pem
+{
+
+cat > admin-csr.json <<EOF
+{
+  "CN": "admin",
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "EU",
+      "L": "WARSAW",
+      "O": "system:masters",
+      "OU": "k8s-hard-way",
+      "ST": "POLAND"
+    }
+  ]
+}
+EOF
+
+cfssl gencert \
+  -ca=ca.pem \
+  -ca-key=ca-key.pem \
+  -config=ca-config.json \
+  -profile=kubernetes \
+  admin-csr.json | cfssljson -bare admin
+
+}
+
