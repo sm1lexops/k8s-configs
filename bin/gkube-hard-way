@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# Update packages and install kubectl
+sudo apt update -y && sudo apt upgrade -y
+sudo apt install -y apt-transport-https ca-certificates gnupg curl sudo wget
+
+K8SVERSION=v1.29.1
+
+wget https://storage.googleapis.com/kubernetes-release/release/$K8SVERSION/bin/linux/amd64/kubectl
+chmod +x kubectl
+sudo mv kubectl /usr/local/bin/
+kubectl version --client
+
+# Install cfssl cfssljson url https://github.com/cloudflare/cfssl/releases
+
+wget https://github.com/cloudflare/cfssl/releases/download/v1.6.4/cfssl_1.6.4_linux_amd64
+wget https://github.com/cloudflare/cfssl/releases/download/v1.6.4/cfssljson_1.6.4_linux_amd64
+chmod +x cfssl_1.6.4_linux_amd64 cfssljson_1.6.4_linux_amd64
+sudo mv cfssl_1.6.4_linux_amd64 /usr/local/bin/cfssl
+sudo mv cfssljson_1.6.4_linux_amd64 /usr/local/bin/cfssljson
+
+# Install gcloud
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+
+# Install and config gcloud
+sudo apt-get update && sudo apt-get install google-cloud-cli
+gcloud init
