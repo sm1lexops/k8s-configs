@@ -25,4 +25,5 @@ echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.clou
 
 # Install and config gcloud
 sudo apt update && sudo apt install google-cloud-cli
-gcloud init
+gcloud init # or without browser 
+#gcloud auth login --no-launch-browser
