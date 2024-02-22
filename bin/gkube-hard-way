@@ -29,10 +29,16 @@ gcloud init # or without browser
 #gcloud auth login --no-launch-browser
 
 # Create networks
+
+gcloud config set compute/region us-east1
+gcloud config set compute/zone us-east1-d
+
 gcloud compute networks create k8s-way --subnet-mode custom
 gcloud compute networks subnetes create kuber --network k8s-way --range 10.100.0.0/24
 gcloud compute networks subnets create kuber --network k8s-way --range 10.100.0.0/24
+
 KUBENET=k8s-way
+
 gcloud compute firewall-rules create k8s-internal-allow --allow tcp,udp,icmp --network $KUBENET --source-ranges 10.100.0.0/24,10.200.0.0/16
 gcloud compute firewall-rules create k8s-external-allow --network $KUBENET --allow tcp:22,tcp:6443,icmp --source-ranges 0.0.0.0/0
 gcloud compute firewall-rules list --filter="network:$KUBENET"
@@ -491,6 +497,7 @@ EOF
 
 # Bootstrapping the etcd Cluster
 # Download and install etcd, change to the latest stable version if needed
+# This commands need to use in tmux on all control plane controllers-{0,1,2}, or use multi-exec mode with Mobaxterm
 
 ETCDVERSION=v3.5.12
 wget -q --show-progress --https-only --timestamping "https://github.com/etcd-io/etcd/releases/download/${ETCDVERSION}/etcd-${ETCDVERSION}-linux-amd64.tar.gz"
@@ -501,3 +508,98 @@ wget -q --show-progress --https-only --timestamping "https://github.com/etcd-io/
 }
 
 # Configure the etcd Server
+{
+  sudo mkdir -p /etc/etcd /var/lib/etcd
+  sudo chmod 700 /var/lib/etcd
+  sudo cp ca.pem kubernetes-key.pem kubernetes.pem /etc/etcd/
+}
+# retrieve internal private ip address
+INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" \
+http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
+
+# hostname 
+ETCD_NAME=$(hostname -s)
+
+#Create the etcd.service systemd unit file
+
+cat <<EOF | sudo tee /etc/systemd/system/etcd.service
+[Unit]
+Description=etcd
+Documentation=https://github.com/coreos
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/etcd \\
+  --name ${ETCD_NAME} \\
+  --cert-file=/etc/etcd/kubernetes.pem \\
+  --key-file=/etc/etcd/kubernetes-key.pem \\
+  --peer-cert-file=/etc/etcd/kubernetes.pem \\
+  --peer-key-file=/etc/etcd/kubernetes-key.pem \\
+  --trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-trusted-ca-file=/etc/etcd/ca.pem \\
+  --peer-client-cert-auth \\
+  --client-cert-auth \\
+  --initial-advertise-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-peer-urls https://${INTERNAL_IP}:2380 \\
+  --listen-client-urls https://${INTERNAL_IP}:2379,https://127.0.0.1:2379 \\
+  --advertise-client-urls https://${INTERNAL_IP}:2379 \\
+  --initial-cluster-token etcd-cluster-0 \\
+  --initial-cluster controller-0=https://10.100.0.10:2380,controller-1=https://10.100.0.11:2380,controller-2=https://10.100.0.12:2380 \\
+  --initial-cluster-state new \\
+  --data-dir=/var/lib/etcd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# start etcd cluster
+{
+  sudo systemctl daemon-reload
+  sudo systemctl enable etcd
+  sudo systemctl start etcd
+}
+
+# check all etcd cluster member
+sudo ETCDCTL_API=3 etcdctl member list \
+--endpoints=https://127.0.0.1:2379 \
+--cacert=/etc/etcd/ca.pem \
+--cert=/etc/etcd/kubernetes.pem \
+--key=/etc/etcd/kubernetes-key.pem
+
+# Provision the Kubernetes Control Plane
+CPVERSION=v1.29.1
+sudo mkdir -p /etc/kubernetes/config
+
+wget -q --show-progress --https-only --timestamping \
+"https://storage.googleapis.com/kubernetes-release/release/${CPVERSION}/bin/linux/amd64/kube-apiserver" \
+"https://storage.googleapis.com/kubernetes-release/release/${CPVERSION}/bin/linux/amd64/kube-controller-manager" \
+"https://storage.googleapis.com/kubernetes-release/release/${CPVERSION}/bin/linux/amd64/kube-scheduler" \
+"https://storage.googleapis.com/kubernetes-release/release/${CPVERSION}/bin/linux/amd64/kubectl"
+
+{
+  chmod +x kube-apiserver kube-controller-manager kube-scheduler kubectl
+  sudo mv kube-apiserver kube-controller-manager kube-scheduler kubectl /usr/local/bin/
+}
+
+# Configure the Kubernetes API Server
+{
+  sudo mkdir -p /var/lib/kubernetes/
+
+  sudo mv ca.pem ca-key.pem kubernetes-key.pem kubernetes.pem \
+  service-account-key.pem service-account.pem \
+  encryption-config.yaml /var/lib/kubernetes/
+}
+
+# Retrieve ip addresses and region
+
+INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" \
+http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
+
+REGION=$(curl -s -H "Metadata-Flavor: Google" \
+http://metadata.google.internal/computeMetadata/v1/project/attributes/google-compute-default-region)
+
+KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe k8s-way \
+--region $REGION \
+--format 'value(address)')
