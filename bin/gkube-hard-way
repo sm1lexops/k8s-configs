@@ -1054,4 +1054,4 @@ for i in 0 1 2; do
 done
 
 #
-kubectl apply -f https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/deployments/coredns-1.7.0.yaml
+kubectl apply -f https://github.com/sm1lexops/k8s-configs/blob/main/bin/coredns_1.11.1.yaml
