@@ -1015,3 +1015,43 @@ EOF
 # Check worker nodes from admin environment
 gcloud compute ssh controller-0 \
   --command "kubectl get nodes --kubeconfig admin.kubeconfig"
+
+# Configuring kubectl for Remote Access
+{
+  KUBERNETES_PUBLIC_ADDRESS=$(gcloud compute addresses describe k8s-way \
+    --region $(gcloud config get-value compute/region) \
+    --format 'value(address)')
+
+  kubectl config set-cluster k8s-way \
+    --certificate-authority=ca.pem \
+    --embed-certs=true \
+    --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443
+
+  kubectl config set-credentials admin \
+    --client-certificate=admin.pem \
+    --client-key=admin-key.pem
+
+  kubectl config set-context k8s-way \
+    --cluster=k8s-way \
+    --user=admin
+
+  kubectl config use-context k8s-way
+}
+
+# Provisioning Pod Network Routes
+# Check routes
+for instance in worker-0 worker-1 worker-2; do
+  gcloud compute instances describe ${instance} \
+    --format 'value[separator=" "](networkInterfaces[0].networkIP,metadata.items[0].value)'
+done
+
+# Configure routes to PODS 
+for i in 0 1 2; do
+  gcloud compute routes create kubernetes-route-10-200-${i}-0-24 \
+    --network k8s-way \
+    --next-hop-address 10.100.0.2${i} \
+    --destination-range 10.200.${i}.0/24
+done
+
+#
+kubectl apply -f https://github.com/kelseyhightower/kubernetes-the-hard-way/blob/master/deployments/coredns-1.7.0.yaml
