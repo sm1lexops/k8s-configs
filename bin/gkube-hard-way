@@ -956,6 +956,7 @@ tlsCertFile: "/var/lib/kubelet/${HOSTNAME}.pem"
 tlsPrivateKeyFile: "/var/lib/kubelet/${HOSTNAME}-key.pem"
 EOF
 
+# Create kubelet service file
 cat <<EOF | sudo tee /etc/systemd/system/kubelet.service
 [Unit]
 Description=Kubernetes Kubelet
@@ -963,7 +964,6 @@ Documentation=https://github.com/kubernetes/kubernetes
 After=containerd.service
 Requires=containerd.service
 
-# Create kubelet service file
 [Service]
 ExecStart=/usr/local/bin/kubelet \\
   --config=/var/lib/kubelet/kubelet-config.yaml \\
