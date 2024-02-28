@@ -479,7 +479,7 @@ done
 
 # Copy to cp nodes kubeconfig
 for instance in controller-0 controller-1 controller-2; do
-gcloud compute scp kube-controller-manager.kubeconfig kube-scheduler.kubeconfig admin.kubeconfig ${instance}:~/; \
+gcloud compute scp ca.pem kubernetes-key.pem  kubernetes.pem kube-controller-manager.kubeconfig kube-scheduler.kubeconfig admin.kubeconfig ${instance}:~/; \
 done
 
 # Create the encryption-config.yaml encryption config file
