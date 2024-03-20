@@ -56,11 +56,6 @@ sudo containerd config default | sudo tee /etc/containerd/config.toml
 sudo sed -i 's/SystemdCgroup = false/SystemdCgroup = true/g' /etc/containerd/config.toml
 sudo systemctl restart containerd
 
-#Update and install k8s
-
-sudo apt update
-sudo apt install -y kubelet kubeadm kubectl
-sudo apt-mark hold kubelet kubeadm kubectl
 
 sudo cat <<EOF | sudo tee /etc/kubernetes/kubeadm-config.yaml
 apiVersion: kudeadm.k8s.io/v1beta3
@@ -96,7 +91,9 @@ lsmod | grep overlay
 #Check network routing
 sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables net.ipv4.ip_forward
 
-
+sudo apt update
+sudo apt install -y kubelet kubeadm kubectl
+sudo apt-mark hold kubelet kubeadm kubectl
 
 #sudo kubeadm init --control-plane-endpoint #If you have plans to upgrade this single control-plane kubeadm cluster to high availability
 sudo kubeadm init --config=/etc/kubernetes/kubeadm-config.yaml --upload-certs | tee kubeadm-init.out
