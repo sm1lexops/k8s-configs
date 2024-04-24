@@ -191,7 +191,7 @@ rules:
         resources: ["pods/log", "pods/status"]
     namespaces: ["psa-baseline-namespace"]
 ---
-# создаем конфиг  ValidatingWebhookConfiguration при валидации запросов   будут добавляться аннотации к аудиту и начинаться с значения в поле имени - name: "psa-webhook.kubernetes.io"
+# создаем конфиг ValidatingWebhookConfiguration при валидации запросов с помощью webhook будут добавляться аннотации к аудиту и начинаться значениями заданными в поле имени вебхука - name: "psa-webhook.kubernetes.io"
 
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
@@ -252,7 +252,49 @@ webhooks:
 
 2.2 Network Policies для ограничения доступа между подами, включая разграничение по namespace и labels. Доступ к подам postgres разрешается по порту 5432 только от подов app01 из пространства имен prod. RBAC политику, разрешающую доступ к указанному namespace пользователю Admin с максимальными привилегиями, а пользователю Audit только на просмотр. 
 
+> yaml файл с сетевой политикой
 
+```yaml
+# разрешаем ingress подключение к postgresql в namespace database из namespace prod от подов app01
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-from-app01
+  namespace: database
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              purpose: prod
+        - podSelector:
+            matchLabels:
+              app: app01
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# запрещаем любой другой ingress к postgresql
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: database
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+```
+> yaml файл с политиками доступа RBAC
+
+```yaml
+
+```
 
 3. Настройка Security as Code: Опишите порядок действий по интеграции GitLab SAST в GitLab CI/CD pipeline. Приведите пример необходимых конфигураций для определения целевых объектов сканирования, времени выполнения и получения уведомлений. 
 4. Интеграция сканера уязвимостей (например, OpenVAS): Опишите сценарий интеграции, OpenVAS в GitLab CI/CD pipeline для автоматического сканирования уязвимостей в разрабатываемом приложении, действий по обработке результатов сканирования. Напишите пример yaml для GitLab CI/CD, содержащего скрипт по автоматизированному реагированию на обнаруженные уязвимости. 
