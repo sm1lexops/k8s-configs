@@ -252,10 +252,12 @@ webhooks:
 
 2.2 Network Policies для ограничения доступа между подами, включая разграничение по namespace и labels. Доступ к подам postgres разрешается по порту 5432 только от подов app01 из пространства имен prod. RBAC политику, разрешающую доступ к указанному namespace пользователю Admin с максимальными привилегиями, а пользователю Audit только на просмотр. 
 
+* соответственно у нас должны быть созданы все namespaces и развернуты deployments для pods c соответствущими labels
+  
 > yaml файл с сетевой политикой
 
 ```yaml
-# разрешаем ingress подключение к postgresql в namespace database из namespace prod от подов app01
+# разрешаем ingress подключение к postgres в namespace database из namespace prod от подов app01
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -290,13 +292,126 @@ spec:
   policyTypes:
     - Ingress
 ```
-> yaml файл с политиками доступа RBAC
+> yaml файл с политиками доступа RBAC в которых мы создаем роли для админ и аудит пользователя с соответствующими правами доступа для database / prod namespaces
 
 ```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: database
+  name: admin-role
+rules:
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["*"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: prod
+  name: admin-role
+rules:
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["*"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: database
+  name: audit-read-role
+rules:
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: prod
+  name: audit-read-role
+rules:
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: admin-role-binding
+  namespace: database
+subjects:
+- kind: User
+  name: Admin
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: admin-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: admin-role-binding
+  namespace: prod
+subjects:
+- kind: User
+  name: Admin
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: admin-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: audit-read-role-binding
+  namespace: database
+subjects:
+- kind: User
+  name: Audit
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: audit-read-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: audit-read-role-binding
+  namespace: prod
+subjects:
+- kind: User
+  name: Audit
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: audit-read-role
+  apiGroup: rbac.authorization.k8s.io
 
 ```
 
-3. Настройка Security as Code: Опишите порядок действий по интеграции GitLab SAST в GitLab CI/CD pipeline. Приведите пример необходимых конфигураций для определения целевых объектов сканирования, времени выполнения и получения уведомлений. 
-4. Интеграция сканера уязвимостей (например, OpenVAS): Опишите сценарий интеграции, OpenVAS в GitLab CI/CD pipeline для автоматического сканирования уязвимостей в разрабатываемом приложении, действий по обработке результатов сканирования. Напишите пример yaml для GitLab CI/CD, содержащего скрипт по автоматизированному реагированию на обнаруженные уязвимости. 
-5. Предложите схему интеграции Web Application Firewall (WAF) в инфраструктуре: Напишите конфигурацию для внедрения WAF (например, ModSecurity) в Nginx. Напишите конкретные примеры правил безопасности, которые вы бы применили в WAF (например, фильтрация SQL-инъекций, XSS-атак, блокировка заданных паттернов). 
-6. Конфигурация ELK (EFK): Напишите конфигурацию агентов для сбора и анализа логов приложения в Kubernetes с использованием ELK. Приведите перечень основных событий, которые вы считаете важными для мониторинга информационной безопасности.
+3. Настройка Security as Code: Опишите порядок действий по интеграции GitLab SAST в GitLab CI/CD pipeline. Приведите пример необходимых конфигураций для определения целевых объектов сканирования, времени выполнения и получения уведомлений.
+
+
+
+5. Интеграция сканера уязвимостей (например, OpenVAS): Опишите сценарий интеграции, OpenVAS в GitLab CI/CD pipeline для автоматического сканирования уязвимостей в разрабатываемом приложении, действий по обработке результатов сканирования. Напишите пример yaml для GitLab CI/CD, содержащего скрипт по автоматизированному реагированию на обнаруженные уязвимости. 
+6. Предложите схему интеграции Web Application Firewall (WAF) в инфраструктуре: Напишите конфигурацию для внедрения WAF (например, ModSecurity) в Nginx. Напишите конкретные примеры правил безопасности, которые вы бы применили в WAF (например, фильтрация SQL-инъекций, XSS-атак, блокировка заданных паттернов).
+
+8. Конфигурация ELK (EFK): Напишите конфигурацию агентов для сбора и анализа логов приложения в Kubernetes с использованием ELK. Приведите перечень основных событий, которые вы считаете важными для мониторинга информационной безопасности.
