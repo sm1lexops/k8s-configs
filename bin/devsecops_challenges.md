@@ -4,11 +4,11 @@
 
 > sshd configuration file
 
-...sh
+```sh
 # меняем стандартный порт
 Port 2233 
-# если есть статичные адреса, разрешаем только их (обычно нет)
-# ListenAddress 192.168.1.100
+# по лучшим практикам используем статичные адреса, разрешаем только их 
+ListenAddress 36.100.45.85
 
 # отключаем вход от root
 PermitRootLogin no
@@ -77,7 +77,7 @@ HostKey /etc/ssh/ssh_host_ed25519_key
 # добавляем правило для MFA
 ChallengeResponseAuthentication yes
 AuthenticationMethods publickey,keyboard-interactive
-...
+```
 
 1.2 Напишите пример конфигурации SSH для bastion host (SSH jump server). Необходимо указать параметры, отличные от default.
 
